@@ -12,10 +12,10 @@ sources:
   #   type: rss
 
 llm:
-  # OpenAI 兼容接口；例如 https://api.openai.com/v1
-  base_url: https://api.openai.com/v1
+  # OpenAI 兼容接口
+  base_url: https://api.siliconflow.cn/v1
   api_key_env: LLM_API_KEY
-  model: gpt-4o-mini
+  model: deepseek-ai/DeepSeek-V3.2
   temperature: 0.2
   max_chars: 12000
 
