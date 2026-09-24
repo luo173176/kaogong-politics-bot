@@ -22,11 +22,16 @@ llm:
 filter:
   keywords: [会议, 决定, 通知, 讲话, 发布, 规划, 意见, 报告, 政策]
   max_per_source: 5
+  max_articles_total: 5
+  cards_per_article: 2
+  quiz_single_per_article: 1
+  quiz_fill_per_article: 1
   hours_window: 48
   request_interval_seconds: 1.0
   title_similarity_threshold: 0.88
 
 output:
   dir: output
+  push_max_articles: 5
   pushplus_token: ""
   feishu_webhook: ""

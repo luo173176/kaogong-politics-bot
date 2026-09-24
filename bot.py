@@ -227,6 +227,25 @@ def call_llm(article: dict[str, Any], llm_cfg: dict[str, Any]) -> dict[str, Any]
     return None
 
 
+def compact_result(data: dict[str, Any], filt: dict[str, Any]) -> dict[str, Any]:
+    """对模型结果做程序级限量，避免模型偶尔输出过多内容。"""
+    card_limit = int(filt.get("cards_per_article", 2))
+    single_limit = int(filt.get("quiz_single_per_article", 1))
+    fill_limit = int(filt.get("quiz_fill_per_article", 1))
+    result = dict(data)
+    result["summary"] = " ".join(str(data.get("summary", "")).split())[:240]
+    result["points"] = [str(x).strip() for x in data.get("points", [])[:2] if str(x).strip()]
+    result["cards"] = data.get("cards", [])[:card_limit]
+    quiz = data.get("quiz", {}) or {}
+    result["quiz"] = {
+        "single": (quiz.get("single", []) or [])[:single_limit],
+        "multiple": [],
+        "fill": (quiz.get("fill", []) or [])[:fill_limit],
+    }
+    result["confusions"] = data.get("confusions", [])[:2]
+    return result
+
+
 def render_markdown(cards: list[dict[str, Any]]) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
     lines = [f"# 考公时政卡片｜{today}", "", f"> 共生成 {len(cards)} 篇材料卡片。"]
@@ -242,6 +261,39 @@ def render_markdown(cards: list[dict[str, Any]]) -> str:
             for kind in ("single", "multiple", "fill"):
                 for q in quiz.get(kind, []):
                     lines += [f"- **{q.get('q', '')}**", f"  - 答案：{q.get('answer', '')}；解析：{q.get('explain', '')}"]
+    return "\n".join(lines) + "\n"
+
+
+def render_push_markdown(cards: list[dict[str, Any]]) -> str:
+    """微信/PushPlus 专用短版：不用宽表格，按记忆顺序分层展示。"""
+    today = datetime.now().strftime("%m月%d日")
+    lines = [f"# 考公时政速记｜{today}", f"> 今日精选 {len(cards)} 篇｜先背考点，再做自测"]
+    for i, item in enumerate(cards, 1):
+        title = str(item.get("source_title", "未命名材料")).replace("***", "").strip()
+        lines += [f"\n## {i}. {title}"]
+        summary = item.get("summary", "")
+        if summary:
+            lines.append(f"**一句话**：{summary}")
+        for n, card in enumerate(item.get("cards", [])[:2], 1):
+            front = str(card.get("front", "")).strip()
+            back = str(card.get("back", "")).strip()
+            trap = str(card.get("trap", "")).strip()
+            lines += [f"**记忆{n}｜问** {front}", f"**答** {back}"]
+            if trap and trap != "待核对":
+                lines.append(f"**易错** {trap}")
+        quiz = item.get("quiz", {}) or {}
+        single = (quiz.get("single", []) or [])[:1]
+        fill = (quiz.get("fill", []) or [])[:1]
+        if single or fill:
+            lines.append("**自测**")
+            for q in single:
+                options = " / ".join(str(x) for x in q.get("options", []))
+                lines.append(f"1. {q.get('q', '')}（{options}）")
+                lines.append(f"答案：{q.get('answer', '')}｜{q.get('explain', '')}")
+            for q in fill:
+                lines.append(f"2. {q.get('q', '')}")
+                lines.append(f"答案：{q.get('answer', '')}｜{q.get('explain', '')}")
+        lines.append(f"[原文]({item.get('source_url', '')})")
     return "\n".join(lines) + "\n"
 
 
@@ -264,7 +316,7 @@ def push(cfg: dict[str, Any], markdown: str) -> None:
     token = output.get("pushplus_token") or os.getenv("PUSHPLUS_TOKEN", "")
     if token:
         try:
-            r = requests.post("https://www.pushplus.plus/send", json={"token": token, "title": "考公时政卡片", "content": markdown, "template": "markdown"}, timeout=15)
+            r = requests.post("https://www.pushplus.plus/send", json={"token": token, "title": "考公时政速记", "content": markdown, "template": "markdown"}, timeout=15)
             r.raise_for_status(); LOG.info("PushPlus 推送完成")
         except Exception as exc:
             LOG.error("PushPlus 推送失败：%s", exc)
@@ -295,16 +347,20 @@ def main() -> int:
                 if db.is_duplicate(article, float(filt.get("title_similarity_threshold", 0.88))):
                     continue
                 articles.append(article); count += 1
+                if len(articles) >= int(filt.get("max_articles_total", 5)):
+                    break
             per_source[source.get("name", "unknown")] = count
+            if len(articles) >= int(filt.get("max_articles_total", 5)):
+                break
         LOG.info("筛选完成：%d 篇，分源统计：%s", len(articles), per_source)
         generated = []
         for article in articles:
             result = call_llm(article, cfg.get("llm", {}))
             db.mark(article)  # 无论成功与否都记录，避免重复消耗；失败原文已写日志
             if result:
-                generated.append(result)
+                generated.append(compact_result(result, filt))
         write_outputs(generated, output_dir)
-        push(cfg, render_markdown(generated))
+        push(cfg, render_push_markdown(generated[: int(cfg.get("output", {}).get("push_max_articles", 5))]))
         LOG.info("完成：Markdown、anki.csv、cards.json 已写入 %s", output_dir)
     finally:
         db.close(); session.close()
