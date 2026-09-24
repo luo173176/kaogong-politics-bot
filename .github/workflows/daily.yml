@@ -1,0 +1,58 @@
+name: Daily Politics Cards
+
+on:
+  schedule:
+    - cron: "30 23 * * *" # UTC 23:30，即北京时间次日 07:30
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    env:
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore deduplication database
+        uses: actions/cache/restore@v4
+        with:
+          path: output/articles.sqlite3
+          key: politics-db-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            politics-db-${{ github.ref_name }}-
+            politics-db-
+
+      - name: Prepare config
+        run: cp config.example.yaml config.yaml
+
+      - name: Generate cards
+        run: python bot.py
+
+      - name: Upload generated files
+        uses: actions/upload-artifact@v4
+        with:
+          name: politics-cards-${{ github.run_number }}
+          path: output/
+          if-no-files-found: warn
+
+      - name: Save deduplication database
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: output/articles.sqlite3
+          key: politics-db-${{ github.ref_name }}-${{ github.run_id }}
