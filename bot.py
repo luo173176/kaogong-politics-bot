@@ -251,6 +251,8 @@ def render_markdown(cards: list[dict[str, Any]]) -> str:
     lines = [f"# 考公时政卡片｜{today}", "", f"> 共生成 {len(cards)} 篇材料卡片。"]
     for i, item in enumerate(cards, 1):
         lines += [f"\n## {i}. {item.get('source_title', '未命名材料')}", f"来源：[查看原文]({item.get('source_url', '')})", "", f"**摘要**：{item.get('summary', '')}", "", "### 考点", *[f"- {x}" for x in item.get("points", [])]]
+        if item.get("exam_focus") or item.get("theory_topic"):
+            lines.append(f"**考纲模块**：{item.get('exam_focus', '政治理论')}｜{item.get('theory_topic', '待核对')}")
         lines += ["\n### 卡片", "| 正面 | 背面 | 标签 | 重要性 | 易错点 |", "|---|---|---|---|---|"]
         for card in item.get("cards", []):
             vals = [card.get(k, "").replace("|", "\\|").replace("\n", " ") for k in ("front", "back", "tag", "importance", "trap")]
@@ -274,6 +276,8 @@ def render_push_markdown(cards: list[dict[str, Any]]) -> str:
         summary = item.get("summary", "")
         if summary:
             lines.append(f"**一句话**：{summary}")
+        if item.get("exam_focus") or item.get("theory_topic"):
+            lines.append(f"**考纲**：{item.get('exam_focus', '政治理论')}｜{item.get('theory_topic', '待核对')}")
         for n, card in enumerate(item.get("cards", [])[:2], 1):
             front = str(card.get("front", "")).strip()
             back = str(card.get("back", "")).strip()

@@ -6,6 +6,9 @@ sources:
   - name: 国家统计局-最新发布
     url: https://www.stats.gov.cn/sj/zxfb/
     type: web
+  - name: 共产党员网-习近平新时代中国特色社会主义思想
+    url: https://www.12371.cn/special/xxzd/
+    type: web
   # RSS 示例：将下方 url 换成你实际使用的公开 RSS
   # - name: 示例 RSS
   #   url: https://example.com/feed.xml
@@ -20,7 +23,7 @@ llm:
   max_chars: 12000
 
 filter:
-  keywords: [会议, 决定, 通知, 讲话, 发布, 规划, 意见, 报告, 政策]
+  keywords: [会议, 决定, 通知, 讲话, 发布, 规划, 意见, 报告, 政策, 中国式现代化, 共同富裕, 高质量发展, 新发展理念, 全面依法治国, 生态文明, 党的建设, 乡村振兴, 文化强国, 总体国家安全观, 人类命运共同体]
   max_per_source: 5
   max_articles_total: 5
   cards_per_article: 2
